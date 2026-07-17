@@ -20,18 +20,21 @@ npm run dev
 
 http://localhost:3000 で起動します。
 
-初回アクセス時に `data/db.json`（gitignore対象）へデモ用の初期在庫データが自動生成されます。設定画面から「デモデータをリセット」でいつでも初期状態に戻せます。
+初回アクセス時にブラウザの `localStorage`（キー: `reizo:data:v1`）へデモ用の初期在庫データが自動生成されます。設定画面から「デモデータをリセット」でいつでも初期状態に戻せます。
+
+在庫データはブラウザにのみ保存され、サーバー側（Vercel 等のサーバーレス環境を含む）にはファイルを一切書き込みません。そのため Vercel のような読み取り専用ファイルシステム上でも動作します。
 
 ## 技術構成
 
 - Next.js (App Router) / TypeScript / Tailwind CSS
-- データ永続化: JSON ファイル（`lib/db.ts`）によるシンプルなストア。本番運用時は PostgreSQL 等への置き換えを想定しています。
+- データ永続化: ブラウザの `localStorage`（`lib/db.ts`）。`useSyncExternalStore`（`lib/useLocalDb.ts`）でデータの変化を各画面へ自動反映しています。SSR中は `window`/`localStorage` に一切アクセスせず、マウント後にクライアント側でのみ読み込みます。
+- 保存場所・レシピのマスタデータは `lib/staticData.ts` に定数として保持（ユーザーごとに変化しないため永続化不要）。
 - ビジネスロジック: `lib/store.ts`（在庫の増減・履歴記録・自動消費ルールの実行・レシピの在庫一致スコアリング）
 
 ## ディレクトリ構成
 
 ```
-app/        画面・APIルート（Next.js App Router）
+app/        画面（Next.js App Router、すべてクライアントコンポーネント）
 components/ クライアントコンポーネント
-lib/        型定義・ビジネスロジック・データストア
+lib/        型定義・ビジネスロジック・localStorage データストア
 ```

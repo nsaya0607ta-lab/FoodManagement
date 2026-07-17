@@ -1,19 +1,46 @@
+"use client";
+
+import { useEffect } from "react";
 import Link from "next/link";
 import FridgeIllustration from "@/components/FridgeIllustration";
 import ItemCard from "@/components/ItemCard";
-import {
-  daysUntilExpiration,
-  getStorageAreaCounts,
-  listInventory,
-  runDueConsumptionRules,
-} from "@/lib/store";
+import { daysUntilExpiration, getStorageAreaCounts, listInventory, runDueConsumptionRules } from "@/lib/store";
+import { useLocalDb } from "@/lib/useLocalDb";
 
-export const dynamic = "force-dynamic";
+export default function HomePage() {
+  const db = useLocalDb();
 
-export default async function HomePage() {
-  // ホーム画面表示時に、期限を過ぎた自動消費ルールを実行する（16章のジョブをシミュレート）。
-  runDueConsumptionRules();
+  useEffect(() => {
+    // ホーム画面表示時に、期限を過ぎた自動消費ルールを実行する（16章のジョブをシミュレート）。
+    // これは localStorage（外部システム）への書き込み副作用であり、コンポーネントの
+    // state を直接更新するものではない。書き込み後は useLocalDb の購読により自動的に再描画される。
+    runDueConsumptionRules();
+  }, []);
 
+  return (
+    <div className="flex flex-col gap-5 px-4 pt-5">
+      <header className="flex items-center justify-between">
+        <h1 className="text-xl font-bold tracking-tight">🧊 Reizo</h1>
+        <div className="flex items-center gap-3 text-lg">
+          <span aria-label="通知" title="通知">
+            🔔
+          </span>
+          <Link href="/settings" aria-label="設定">
+            ⚙️
+          </Link>
+        </div>
+      </header>
+
+      {!db ? (
+        <p className="py-8 text-center text-sm text-zinc-500">読み込み中...</p>
+      ) : (
+        <HomeContent />
+      )}
+    </div>
+  );
+}
+
+function HomeContent() {
   const counts = getStorageAreaCounts();
   const items = listInventory();
 
@@ -30,19 +57,7 @@ export default async function HomePage() {
     .slice(0, 4);
 
   return (
-    <div className="flex flex-col gap-5 px-4 pt-5">
-      <header className="flex items-center justify-between">
-        <h1 className="text-xl font-bold tracking-tight">🧊 Reizo</h1>
-        <div className="flex items-center gap-3 text-lg">
-          <span aria-label="通知" title="通知">
-            🔔
-          </span>
-          <Link href="/settings" aria-label="設定">
-            ⚙️
-          </Link>
-        </div>
-      </header>
-
+    <>
       <FridgeIllustration counts={counts} />
 
       <div className="grid grid-cols-1 gap-2">
@@ -94,6 +109,6 @@ export default async function HomePage() {
           </div>
         )}
       </section>
-    </div>
+    </>
   );
 }

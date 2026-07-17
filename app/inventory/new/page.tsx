@@ -2,9 +2,7 @@ import Link from "next/link";
 import InventoryForm from "@/components/InventoryForm";
 import { listStorageAreas } from "@/lib/store";
 
-export const dynamic = "force-dynamic";
-
-export default async function NewInventoryPage() {
+export default function NewInventoryPage() {
   const storageAreas = listStorageAreas();
   return (
     <div className="flex flex-col gap-4 px-4 pt-5">

@@ -1,18 +1,21 @@
+"use client";
+
 import Link from "next/link";
 import RuleActions from "@/components/RuleActions";
 import { formatRecurrence } from "@/lib/ruleLabels";
-import { readDb } from "@/lib/db";
-
-export const dynamic = "force-dynamic";
+import { useLocalDb } from "@/lib/useLocalDb";
 
 function formatAmount(amount: number, unit: string): string {
   const rounded = Math.round(amount * 100) / 100;
   return `${rounded}${unit}`;
 }
 
-export default async function RulesPage() {
-  const db = readDb();
-  const rules = [...db.consumptionRules].sort((a, b) => (a.nextExecutionAt < b.nextExecutionAt ? -1 : 1));
+export default function RulesPage() {
+  const db = useLocalDb();
+
+  const rules = db
+    ? [...db.consumptionRules].sort((a, b) => (a.nextExecutionAt < b.nextExecutionAt ? -1 : 1))
+    : [];
 
   return (
     <div className="flex flex-col gap-4 px-4 pt-5">
@@ -26,7 +29,9 @@ export default async function RulesPage() {
         </Link>
       </div>
 
-      {rules.length === 0 ? (
+      {!db ? (
+        <p className="py-8 text-center text-sm text-zinc-500">読み込み中...</p>
+      ) : rules.length === 0 ? (
         <p className="text-sm text-zinc-500">
           自動消費ルールはまだありません。「毎朝牛乳を100ml飲む」のような日常消費を登録できます。
         </p>

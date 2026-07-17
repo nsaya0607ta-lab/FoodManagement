@@ -1,12 +1,12 @@
+"use client";
+
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import ItemCard from "@/components/ItemCard";
 import SortSelect from "@/components/SortSelect";
-import { daysUntilExpiration, listStorageAreas, stockLevel } from "@/lib/store";
+import { daysUntilExpiration, getStorageAreaInventory, listStorageAreas, stockLevel } from "@/lib/store";
 import { InventoryItem } from "@/lib/types";
-import { readDb } from "@/lib/db";
-
-export const dynamic = "force-dynamic";
+import { useLocalDb } from "@/lib/useLocalDb";
 
 type SortKey = "expiration" | "purchase_old" | "name" | "amount_low" | "newest";
 
@@ -48,35 +48,59 @@ function sortItems(items: InventoryItem[], sort: SortKey): InventoryItem[] {
   }
 }
 
-export default async function StorageAreaPage({
-  params,
-  searchParams,
-}: {
-  params: Promise<{ id: string }>;
-  searchParams: Promise<{ sort?: string; f?: string }>;
-}) {
-  const { id } = await params;
-  const sp = await searchParams;
+export default function StorageAreaPage() {
+  const params = useParams<{ id: string }>();
+  const searchParams = useSearchParams();
+  const id = params.id;
+  const db = useLocalDb();
+
+  if (!db) {
+    return (
+      <div className="flex flex-col gap-4 px-4 pt-5">
+        <Link href="/storage" className="text-sm text-zinc-500 hover:underline">
+          ← 保存場所一覧
+        </Link>
+        <p className="py-8 text-center text-sm text-zinc-500">読み込み中...</p>
+      </div>
+    );
+  }
+
   const areas = listStorageAreas();
   const area = areas.find((a) => a.id === id);
-  if (!area) notFound();
 
-  const db = readDb();
-  let items = db.inventoryItems.filter((i) => i.storageAreaId === id && i.status === "active");
+  if (!area) {
+    return (
+      <div className="flex flex-col gap-4 px-4 pt-5">
+        <Link href="/storage" className="text-sm text-zinc-500 hover:underline">
+          ← 保存場所一覧
+        </Link>
+        <p className="mt-8 text-center text-sm text-zinc-500">保存場所が見つかりませんでした。</p>
+      </div>
+    );
+  }
+
+  const items = getStorageAreaInventory(id);
+  const sp = {
+    sort: searchParams.get("sort") ?? undefined,
+    f: searchParams.get("f") ?? undefined,
+  };
 
   const activeFilters = new Set((sp.f ?? "").split(",").filter(Boolean) as FilterKey[]);
+  let filteredItems = items;
   if (activeFilters.has("expiring")) {
-    items = items.filter((i) => stockLevel(i) === "expiring_soon" || stockLevel(i) === "expired");
+    filteredItems = filteredItems.filter(
+      (i) => stockLevel(i) === "expiring_soon" || stockLevel(i) === "expired",
+    );
   }
   if (activeFilters.has("low")) {
-    items = items.filter((i) => stockLevel(i) === "low");
+    filteredItems = filteredItems.filter((i) => stockLevel(i) === "low");
   }
   if (activeFilters.has("unknown_amount")) {
-    items = items.filter((i) => i.expirationDate === null);
+    filteredItems = filteredItems.filter((i) => i.expirationDate === null);
   }
 
   const sort = (sp.sort as SortKey) ?? "expiration";
-  items = sortItems(items, sort);
+  filteredItems = sortItems(filteredItems, sort);
 
   const toggleFilterHref = (key: FilterKey) => {
     const next = new Set(activeFilters);
@@ -128,11 +152,11 @@ export default async function StorageAreaPage({
         />
       </div>
 
-      {items.length === 0 ? (
+      {filteredItems.length === 0 ? (
         <p className="mt-8 text-center text-sm text-zinc-500">この保存場所に食材はありません。</p>
       ) : (
         <div className="flex flex-col gap-2">
-          {items.map((item) => (
+          {filteredItems.map((item) => (
             <ItemCard key={item.id} item={item} />
           ))}
         </div>

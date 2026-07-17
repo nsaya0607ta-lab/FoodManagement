@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { api } from "@/lib/apiClient";
 
 export default function ResetDataButton() {
   const router = useRouter();
@@ -11,9 +12,8 @@ export default function ResetDataButton() {
     if (!confirm("在庫データをデモ初期状態にリセットしますか？この操作は元に戻せません。")) return;
     setBusy(true);
     try {
-      await fetch("/api/dev/reset", { method: "POST" });
+      await api.resetDemoData();
       router.push("/");
-      router.refresh();
     } finally {
       setBusy(false);
     }

@@ -1,98 +1,69 @@
 "use client";
 
-import type {
-  ConsumptionRule,
-  InventoryItem,
-  InventoryTransaction,
-  Recipe,
-  StorageArea,
-} from "./types";
-import type { RecipeMatch } from "./store";
-
-async function request<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, {
-    ...init,
-    headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
-  });
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({ error: res.statusText }));
-    throw new Error(body.error ?? `request failed: ${res.status}`);
-  }
-  return res.json() as Promise<T>;
-}
+// このモジュールはブラウザの localStorage 上で完結するデータ操作を提供する。
+// 以前は API ルート（サーバー）へ fetch していたが、Vercel 等のサーバーレス環境では
+// 書き込み可能なファイルシステムが無いため、すべてクライアント側の lib/store.ts を
+// 直接呼び出す方式に変更した。呼び出し側（コンポーネント）の使い方は変わらない。
+import * as store from "./store";
+import type { CreateInventoryInput, CreateRuleInput, RecipeMatch } from "./store";
+import type { ConsumptionRule, Recipe, StorageArea } from "./types";
 
 export const api = {
-  listStorageAreas: () =>
-    request<{ areas: (StorageArea & { itemCount: number })[] }>("/api/storage-areas"),
-  storageAreaInventory: (id: string) =>
-    request<{ items: InventoryItem[] }>(`/api/storage-areas/${id}/inventory`),
-  listInventory: () => request<{ items: InventoryItem[] }>("/api/inventory"),
-  getInventoryItem: (id: string) =>
-    request<{ item: InventoryItem; history: InventoryTransaction[] }>(`/api/inventory/${id}`),
-  createInventoryItem: (input: Record<string, unknown>) =>
-    request<{ item: InventoryItem }>("/api/inventory", {
-      method: "POST",
-      body: JSON.stringify(input),
-    }),
-  updateInventoryItem: (id: string, patch: Record<string, unknown>) =>
-    request<{ item: InventoryItem }>(`/api/inventory/${id}`, {
-      method: "PATCH",
-      body: JSON.stringify(patch),
-    }),
-  deleteInventoryItem: (id: string) =>
-    request<{ ok: true }>(`/api/inventory/${id}`, { method: "DELETE" }),
-  consume: (id: string, amount: number, note?: string) =>
-    request<{ item: InventoryItem }>(`/api/inventory/${id}/consume`, {
-      method: "POST",
-      body: JSON.stringify({ amount, note }),
-    }),
-  adjust: (id: string, amount: number, note?: string) =>
-    request<{ item: InventoryItem }>(`/api/inventory/${id}/adjust`, {
-      method: "POST",
-      body: JSON.stringify({ amount, note }),
-    }),
-  usedUp: (id: string) =>
-    request<{ item: InventoryItem }>(`/api/inventory/${id}/adjust`, {
-      method: "POST",
-      body: JSON.stringify({ usedUp: true }),
-    }),
-  restock: (id: string, amount: number, note?: string) =>
-    request<{ item: InventoryItem }>(`/api/inventory/${id}/restock`, {
-      method: "POST",
-      body: JSON.stringify({ amount, note }),
-    }),
+  listStorageAreas: async () => {
+    const areas = store.listStorageAreas();
+    const counts = store.getStorageAreaCounts();
+    return { areas: areas.map((a) => ({ ...a, itemCount: counts[a.id] ?? 0 })) as (StorageArea & { itemCount: number })[] };
+  },
+  storageAreaInventory: async (id: string) => ({ items: store.getStorageAreaInventory(id) }),
+  listInventory: async () => ({ items: store.listInventory() }),
+  getInventoryItem: async (id: string) => ({
+    item: store.getInventoryItem(id),
+    history: store.getInventoryHistory(id),
+  }),
+  createInventoryItem: async (input: CreateInventoryInput) => ({
+    item: store.createInventoryItem(input),
+  }),
+  updateInventoryItem: async (id: string, patch: Parameters<typeof store.updateInventoryItem>[1]) => ({
+    item: store.updateInventoryItem(id, patch),
+  }),
+  deleteInventoryItem: async (id: string) => {
+    store.deleteInventoryItem(id);
+    return { ok: true as const };
+  },
+  consume: async (id: string, amount: number, note?: string) => ({
+    item: store.consumeInventoryItem(id, amount, { note }),
+  }),
+  adjust: async (id: string, amount: number, note?: string) => ({
+    item: store.adjustInventoryItem(id, amount, note),
+  }),
+  usedUp: async (id: string) => ({ item: store.discardInventoryItem(id, "使い切った") }),
+  restock: async (id: string, amount: number, note?: string) => ({
+    item: store.restockInventoryItem(id, amount, note),
+  }),
 
-  listRules: () => request<{ rules: ConsumptionRule[] }>("/api/consumption-rules"),
-  createRule: (input: Record<string, unknown>) =>
-    request<{ rule: ConsumptionRule }>("/api/consumption-rules", {
-      method: "POST",
-      body: JSON.stringify(input),
-    }),
-  updateRule: (id: string, patch: Record<string, unknown>) =>
-    request<{ rule: ConsumptionRule }>(`/api/consumption-rules/${id}`, {
-      method: "PATCH",
-      body: JSON.stringify(patch),
-    }),
-  deleteRule: (id: string) =>
-    request<{ ok: true }>(`/api/consumption-rules/${id}`, { method: "DELETE" }),
-  pauseRule: (id: string) =>
-    request<{ rule: ConsumptionRule }>(`/api/consumption-rules/${id}/pause`, { method: "POST" }),
-  resumeRule: (id: string) =>
-    request<{ rule: ConsumptionRule }>(`/api/consumption-rules/${id}/resume`, { method: "POST" }),
-  runDueRules: () =>
-    request<{ executed: unknown[] }>("/api/consumption-rules/run-due", { method: "POST" }),
+  listRules: async () => ({ rules: store.listConsumptionRules() }),
+  createRule: async (input: CreateRuleInput) => ({ rule: store.createConsumptionRule(input) }),
+  updateRule: async (id: string, patch: Parameters<typeof store.updateConsumptionRule>[1]) => ({
+    rule: store.updateConsumptionRule(id, patch),
+  }),
+  deleteRule: async (id: string) => {
+    store.deleteConsumptionRule(id);
+    return { ok: true as const };
+  },
+  pauseRule: async (id: string) => ({ rule: store.setRuleActive(id, false) }),
+  resumeRule: async (id: string) => ({ rule: store.setRuleActive(id, true) }),
+  runDueRules: async () => store.runDueConsumptionRules(),
 
-  recipeRecommendations: () =>
-    request<{ recommendations: RecipeMatch[] }>("/api/recipes/recommendations"),
-  getRecipe: (id: string) => request<RecipeMatch>(`/api/recipes/${id}`),
-  completeRecipe: (id: string, servingsMultiplier = 1) =>
-    request<{
-      updatedItems: { itemId: string; name: string; before: number; after: number; unit: string }[];
-      emptiedItems: { itemId: string; name: string }[];
-    }>(`/api/recipes/${id}/complete`, {
-      method: "POST",
-      body: JSON.stringify({ servingsMultiplier }),
-    }),
+  recipeRecommendations: async () => ({ recommendations: store.recommendRecipes() }),
+  getRecipe: async (id: string): Promise<RecipeMatch> => store.getRecipeMatch(id),
+  completeRecipe: async (id: string, servingsMultiplier = 1) =>
+    store.completeRecipe(id, servingsMultiplier),
+
+  resetDemoData: async () => {
+    const { resetDb } = await import("./db");
+    resetDb();
+    return { ok: true as const };
+  },
 };
 
-export type { Recipe };
+export type { ConsumptionRule, Recipe, RecipeMatch };

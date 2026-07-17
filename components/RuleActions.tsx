@@ -1,12 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { api } from "@/lib/apiClient";
 import { ConsumptionRule } from "@/lib/types";
 
 export default function RuleActions({ rule }: { rule: ConsumptionRule }) {
-  const router = useRouter();
   const [busy, setBusy] = useState(false);
 
   const toggle = async () => {
@@ -14,7 +12,6 @@ export default function RuleActions({ rule }: { rule: ConsumptionRule }) {
     try {
       if (rule.isActive) await api.pauseRule(rule.id);
       else await api.resumeRule(rule.id);
-      router.refresh();
     } finally {
       setBusy(false);
     }
@@ -25,7 +22,6 @@ export default function RuleActions({ rule }: { rule: ConsumptionRule }) {
     setBusy(true);
     try {
       await api.deleteRule(rule.id);
-      router.refresh();
     } finally {
       setBusy(false);
     }

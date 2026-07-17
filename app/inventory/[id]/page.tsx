@@ -1,12 +1,12 @@
+"use client";
+
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { useParams } from "next/navigation";
 import ItemDetailActions from "@/components/ItemDetailActions";
 import StatusBadge from "@/components/StatusBadge";
 import { CATEGORY_LABELS } from "@/lib/units";
 import { daysUntilExpiration, listStorageAreas, stockLevel } from "@/lib/store";
-import { readDb } from "@/lib/db";
-
-export const dynamic = "force-dynamic";
+import { useLocalDb } from "@/lib/useLocalDb";
 
 const EXPIRATION_TYPE_LABEL: Record<string, string> = {
   best_before: "賞味期限（メーカー記載）",
@@ -28,15 +28,31 @@ function formatAmount(amount: number, unit: string): string {
   return `${rounded}${unit}`;
 }
 
-export default async function InventoryItemPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id } = await params;
-  const db = readDb();
-  const item = db.inventoryItems.find((i) => i.id === id);
-  if (!item) notFound();
+export default function InventoryItemPage() {
+  const params = useParams<{ id: string }>();
+  const id = params.id;
+  const db = useLocalDb();
+
+  if (!db) {
+    return (
+      <div className="flex flex-col gap-4 px-4 pt-5">
+        <p className="py-8 text-center text-sm text-zinc-500">読み込み中...</p>
+      </div>
+    );
+  }
+
+  const item = db.inventoryItems.find((i) => i.id === id) ?? null;
+
+  if (!item) {
+    return (
+      <div className="flex flex-col gap-4 px-4 pt-5">
+        <Link href="/storage" className="text-sm text-zinc-500 hover:underline">
+          ← 在庫
+        </Link>
+        <p className="mt-8 text-center text-sm text-zinc-500">食材が見つかりませんでした。</p>
+      </div>
+    );
+  }
 
   const history = db.transactions
     .filter((t) => t.inventoryItemId === id)
@@ -44,7 +60,6 @@ export default async function InventoryItemPage({
   const rules = db.consumptionRules.filter((r) => r.inventoryItemId === id);
   const storageAreas = listStorageAreas();
   const area = storageAreas.find((a) => a.id === item.storageAreaId);
-
   const days = daysUntilExpiration(item);
   const level = stockLevel(item);
   const ratio =
