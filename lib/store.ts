@@ -1,5 +1,6 @@
 import { readDb, writeDb, generateId, nowIso, Database } from "./db";
 import { convertAmount, daysUntilExpiration, stockLevel, StockLevel } from "./inventoryUtils";
+import { RECIPES, STORAGE_AREAS } from "./staticData";
 import {
   ConsumptionRule,
   InventoryItem,
@@ -23,7 +24,7 @@ export type { StockLevel };
 /* ------------------------------------------------------------------ */
 
 export function listStorageAreas(): StorageArea[] {
-  return readDb().storageAreas.sort((a, b) => a.sortOrder - b.sortOrder);
+  return [...STORAGE_AREAS].sort((a, b) => a.sortOrder - b.sortOrder);
 }
 
 export function getStorageAreaInventory(storageAreaId: string): InventoryItem[] {
@@ -455,11 +456,11 @@ export function runDueConsumptionRules(): RunDueRulesResult {
 /* ------------------------------------------------------------------ */
 
 export function listRecipes(): Recipe[] {
-  return readDb().recipes;
+  return RECIPES;
 }
 
 export function getRecipe(id: string): Recipe {
-  const recipe = readDb().recipes.find((r) => r.id === id);
+  const recipe = RECIPES.find((r) => r.id === id);
   if (!recipe) throw new NotFoundError(`recipe not found: ${id}`);
   return recipe;
 }
@@ -526,7 +527,7 @@ function ingredientAvailability(db: Database, recipe: Recipe): IngredientAvailab
 /** 在庫一致率とスコアに基づくレシピ提案（設計書13章） */
 export function recommendRecipes(): RecipeMatch[] {
   const db = readDb();
-  const results: RecipeMatch[] = db.recipes.map((recipe) => {
+  const results: RecipeMatch[] = RECIPES.map((recipe) => {
     const availability = ingredientAvailability(db, recipe);
     const required = availability.filter((a) => !a.isOptional);
     const satisfied = required.filter((a) => a.sufficient).length;
@@ -581,7 +582,7 @@ export interface RecipeCompletionResult {
  */
 export function completeRecipe(recipeId: string, servingsMultiplier = 1): RecipeCompletionResult {
   const db = readDb();
-  const recipe = db.recipes.find((r) => r.id === recipeId);
+  const recipe = RECIPES.find((r) => r.id === recipeId);
   if (!recipe) throw new NotFoundError(`recipe not found: ${recipeId}`);
 
   const updatedItems: RecipeCompletionResult["updatedItems"] = [];

@@ -39,7 +39,6 @@ export default function ItemDetailActions({
       if (mode === "adjust") await api.adjust(item.id, value);
       if (mode === "restock") await api.restock(item.id, value);
       close();
-      router.refresh();
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -52,7 +51,6 @@ export default function ItemDetailActions({
     setBusy(true);
     try {
       await api.usedUp(item.id);
-      router.refresh();
     } finally {
       setBusy(false);
     }
@@ -62,7 +60,6 @@ export default function ItemDetailActions({
     setBusy(true);
     try {
       await api.updateInventoryItem(item.id, { storageAreaId });
-      router.refresh();
     } finally {
       setBusy(false);
     }

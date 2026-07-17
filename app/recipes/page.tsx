@@ -1,12 +1,16 @@
+"use client";
+
 import Link from "next/link";
 import { recommendRecipes } from "@/lib/store";
-
-export const dynamic = "force-dynamic";
+import type { RecipeMatch } from "@/lib/store";
+import { useLocalDb } from "@/lib/useLocalDb";
 
 const DIFFICULTY_LABEL: Record<string, string> = { easy: "かんたん", normal: "ふつう", hard: "むずかしい" };
 
-export default async function RecipesPage() {
-  const matches = recommendRecipes();
+export default function RecipesPage() {
+  const db = useLocalDb();
+  const matches = db ? recommendRecipes() : [];
+
   const readyToCook = matches.filter((m) => m.canCookWithoutShopping);
   const almostReady = matches.filter((m) => !m.canCookWithoutShopping && m.shortageIngredients.length === 1);
   const usesExpiring = matches.filter((m) => m.usesExpiringItems);
@@ -18,29 +22,29 @@ export default async function RecipesPage() {
         今の在庫から作れる料理をスコア順に表示しています。
       </p>
 
-      {readyToCook.length > 0 && (
-        <RecipeSection title="買い足しなしで作れる" matches={readyToCook} />
-      )}
-      {almostReady.length > 0 && <RecipeSection title="あと1品で作れる" matches={almostReady} />}
-      {usesExpiring.length > 0 && (
-        <RecipeSection title="期限が近い食材を使える" matches={usesExpiring} />
-      )}
+      {!db ? (
+        <p className="py-8 text-center text-sm text-zinc-500">読み込み中...</p>
+      ) : (
+        <>
+          {readyToCook.length > 0 && (
+            <RecipeSection title="買い足しなしで作れる" matches={readyToCook} />
+          )}
+          {almostReady.length > 0 && <RecipeSection title="あと1品で作れる" matches={almostReady} />}
+          {usesExpiring.length > 0 && (
+            <RecipeSection title="期限が近い食材を使える" matches={usesExpiring} />
+          )}
 
-      <section>
-        <h2 className="mb-2 text-sm font-semibold text-zinc-600 dark:text-zinc-400">すべてのレシピ</h2>
-        <RecipeList matches={matches} />
-      </section>
+          <section>
+            <h2 className="mb-2 text-sm font-semibold text-zinc-600 dark:text-zinc-400">すべてのレシピ</h2>
+            <RecipeList matches={matches} />
+          </section>
+        </>
+      )}
     </div>
   );
 }
 
-function RecipeSection({
-  title,
-  matches,
-}: {
-  title: string;
-  matches: ReturnType<typeof recommendRecipes>;
-}) {
+function RecipeSection({ title, matches }: { title: string; matches: RecipeMatch[] }) {
   return (
     <section>
       <h2 className="mb-2 text-sm font-semibold text-zinc-600 dark:text-zinc-400">{title}</h2>
@@ -49,7 +53,7 @@ function RecipeSection({
   );
 }
 
-function RecipeList({ matches }: { matches: ReturnType<typeof recommendRecipes> }) {
+function RecipeList({ matches }: { matches: RecipeMatch[] }) {
   return (
     <div className="flex flex-col gap-2">
       {matches.map((m) => (

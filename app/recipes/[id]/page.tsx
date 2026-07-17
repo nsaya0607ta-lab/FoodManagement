@@ -1,9 +1,10 @@
+"use client";
+
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { useParams } from "next/navigation";
 import CookRecipe from "@/components/CookRecipe";
 import { getRecipeMatch, NotFoundError } from "@/lib/store";
-
-export const dynamic = "force-dynamic";
+import { useLocalDb } from "@/lib/useLocalDb";
 
 const DIFFICULTY_LABEL: Record<string, string> = { easy: "かんたん", normal: "ふつう", hard: "むずかしい" };
 
@@ -12,15 +13,38 @@ function formatAmount(amount: number, unit: string): string {
   return `${rounded}${unit}`;
 }
 
-export default async function RecipeDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
+export default function RecipeDetailPage() {
+  const params = useParams<{ id: string }>();
+  const id = params.id;
+  const db = useLocalDb();
+
+  if (!db) {
+    return (
+      <div className="flex flex-col gap-4 px-4 pt-5">
+        <p className="py-8 text-center text-sm text-zinc-500">読み込み中...</p>
+      </div>
+    );
+  }
+
   let match;
   try {
     match = getRecipeMatch(id);
   } catch (e) {
-    if (e instanceof NotFoundError) notFound();
-    throw e;
+    if (e instanceof NotFoundError) match = null;
+    else throw e;
   }
+
+  if (!match) {
+    return (
+      <div className="flex flex-col gap-4 px-4 pt-5">
+        <Link href="/recipes" className="text-sm text-zinc-500 hover:underline">
+          ← レシピ提案
+        </Link>
+        <p className="mt-8 text-center text-sm text-zinc-500">レシピが見つかりませんでした。</p>
+      </div>
+    );
+  }
+
   const { recipe } = match;
 
   return (

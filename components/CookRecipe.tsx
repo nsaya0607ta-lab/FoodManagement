@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { api } from "@/lib/apiClient";
 import type { RecipeMatch } from "@/lib/store";
 
@@ -11,7 +10,6 @@ function formatAmount(amount: number, unit: string): string {
 }
 
 export default function CookRecipe({ match }: { match: RecipeMatch }) {
-  const router = useRouter();
   const [confirming, setConfirming] = useState(false);
   const [multiplier, setMultiplier] = useState(1);
   const [busy, setBusy] = useState(false);
@@ -30,7 +28,6 @@ export default function CookRecipe({ match }: { match: RecipeMatch }) {
       const res = await api.completeRecipe(match.recipe.id, multiplier);
       setResult(res);
       setConfirming(false);
-      router.refresh();
     } catch (e) {
       setError((e as Error).message);
     } finally {
